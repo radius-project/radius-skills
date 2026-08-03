@@ -1,10 +1,10 @@
 # Custom resource types (generated on demand)
 
-Use this when the application genuinely needs a backing service that has NO matching type in the predefined allow-list in [Resource Type Resolution](../SKILL.md#resource-type-resolution). Instead of forcing an ill-fitting predefined type or stopping, generate a custom resource type so the application can still be modeled and deployed.
+Use this when the application genuinely needs a backing service that has NO matching type in the predefined catalog in [Type and Recipe resolution](authoring.md#type-and-recipe-resolution). Instead of forcing an ill-fitting predefined type or stopping, generate a custom resource type so the application can still be modeled and deployed.
 
 Custom types are generated automatically as part of modeling. Do not ask the user whether to generate one; decide from the source's actual dependency. The initial scope is backing services that Radius can provision on **Azure**. If the required service is not provisionable on Azure, do NOT invent a type: report the unsupported dependency and stop for that resource.
 
-Every generated artifact lives in `.radius/`, co-located with `app.bicep` and `bicepconfig.json`, and is written and staged with the same behavior as the rest of the model (see the [Response](../SKILL.md#response) section). Publishing an extension or recipe to a registry is an OCI push, not a git push.
+Every generated artifact lives in `.radius/`, co-located with `app.bicep` and `bicepconfig.json`, and is written and staged with the same behavior as the rest of the model (see [Response and output](../SKILL.md#response-and-output)). Publishing an extension or recipe to a registry is an OCI push, not a git push.
 
 Author every artifact from the templates below: copy the skeleton and fill only the marked `<placeholders>`. The surrounding structure, resource types, API versions, and wiring keys are fixed and must not be changed or renamed.
 
@@ -185,7 +185,10 @@ Notes:
 
 ### 6. Reference the type in `app.bicep`
 
-Use the custom type as `Radius.Resources/<typeNamePlural>@2025-08-01-preview` and wire it to the workloads like any other backing service: connections, environment projection, and secret handling follow [connection-conventions.md](connection-conventions.md) and [secrets-handling.md](secrets-handling.md).
+Use the custom type as `Radius.Resources/<typeNamePlural>@2025-08-01-preview`
+and wire it to workloads like any other backing service. Connections,
+environment projection, and secret handling follow
+[authoring.md](authoring.md).
 
 ## Artifacts (all in `.radius/`)
 
@@ -197,7 +200,10 @@ Use the custom type as `Radius.Resources/<typeNamePlural>@2025-08-01-preview` an
 
 ## Validation
 
-- `app.bicep` compiles with both the `radius` extension and the local custom-types extension.
+- `app.bicep` compiles with both extensions and the
+  [compile-and-check loop](../SKILL.md#compile-and-check) returns `ALLOW`. Every
+  custom resource is consumed by a workload, and that workload declares a
+  connection to it.
 - `custom-types.yaml`, `custom-types.tgz`, and `custom-recipe-pack.bicep` exist in `.radius/`, plus `<type>-recipe.bicep` when one was authored.
 - The recipe pack `source` resolves: a pinned MCR AVM path (4a), or a GHCR path that was actually published (4b).
 - The recipe pack `parameters` cover the module's required inputs (via `{{context}}`), and `outputs` map every `readOnly` property of the type (sensitive ones under `secrets`).
