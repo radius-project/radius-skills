@@ -44,15 +44,18 @@ the SQLite default does not override the explicit selection.
    do not fall back to SQLite merely because it is the application default.
 2. Resolve the MySQL type, API version, credential inputs, and `host` output
    against the exact configured extension and recipe.
-3. Map all four native variables. A generic connection does not invent these
-   application-specific names.
-4. Pass the developer-supplied password to the schema's sensitive resource
-   property from a `@secure()` parameter, and assign that same parameter directly
-   to the workload's `MYSQL_PASSWORD` `env.value`. Radius encrypts and injects it,
-   so no wrapper `Radius.Security/secrets` resource or `secretKeyRef` is needed.
-5. Referencing the image and MySQL host creates dependency
-   ordering. Omit a generic connection unless the request explicitly requires
-   Radius relationship metadata or the source consumes its exact projection.
+3. Map the nonsecret native variables explicitly. For the credential, verify that
+   the selected source path consumes the generated input Secret connection
+   variable; a connection does not invent `MYSQL_PASSWORD`.
+4. Store the developer-supplied password in a user-authored
+   `Radius.Security/secrets` resource and connect that input Secret by `.id`.
+   The generated variable suffix follows the authored Secret key. If the pinned
+   source cannot consume that contract, report the contract gap rather than
+   assigning the secure parameter directly to `env.value`.
+5. Referencing the image and MySQL host creates dependency ordering. Keep the
+   input Secret connection required for the password. Omit a separate MySQL
+   producer connection unless the request explicitly requires relationship
+   metadata or the source consumes its exact projection.
 6. Set the image `tag` to the pinned source commit because the exact Recipe's
    omitted-tag path is broken, and set `build.platforms` to `['linux/amd64']`
    instead of inheriting its incompatible multi-platform default. Consume the
@@ -65,9 +68,9 @@ the SQLite default does not override the explicit selection.
 ## Completion checks
 
 - The selected MySQL type and source-built workload are both emitted.
-- Every required native variable appears with exact spelling and format.
-- The workload password uses the same `@secure()` parameter through
-  `env.value`; no password is hardcoded and no authored wrapper secret exists.
+- Every required nonsecret native variable appears with exact spelling and format.
+- The workload password comes from a user-authored input Secret connection by
+  `.id`; no password is hardcoded and no Recipe output is copied.
 - The image has a Docker-valid immutable tag and targets only `linux/amd64`.
 - The target Environment registers every Recipe required by the model.
 - The process listener, image entrypoint, and database name/version agree with

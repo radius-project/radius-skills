@@ -7,7 +7,7 @@ A `Radius.Compute/containers` connection declares a generic Radius relationship 
 Connection projection is version-specific. Depending on the Radius/container schema and recipe, a connection may provide:
 
 - a `CONNECTION_<NAME>_PROPERTIES` JSON value;
-- individual `CONNECTION_<NAME>_<PROPERTY>` values;
+- individual `CONNECTION_<NAME>_<PROPERTY>` values, including secret-backed values for Recipe-declared secret outputs;
 - relationship metadata; and/or
 - no sensitive outputs.
 
@@ -22,8 +22,10 @@ For every dependency:
 3. Inspect the exact resource outputs and connection projection supplied by the target schema and recipe.
 4. Prove the full client tuple: subresource, complete endpoint, port, protocol/version, TLS, auth mechanism, secret, and final source-supported format.
 5. Select the wiring for each app-native value:
-   - explicit `env.value` from a verified nonsecret output or literal, or from a developer-supplied `@secure()` parameter (Radius encrypts and injects it);
-   - `valueFrom.secretKeyRef` from an exact secret and key: a recipe-generated managed secret via `<resource>.properties.secrets.name`, or an authored `Radius.Security/secrets`;
+   - explicit `env.value` from a verified nonsecret output or literal;
+   - a connection to a user-authored input Secret via `source: <secret>.id`;
+   - a producer connection via `source: <producer>.id`, which projects Recipe-declared secret outputs as secret-backed connection variables;
+   - `valueFrom.secretKeyRef` via `<producer>.properties.secrets.name` and an exact declared key only when the source requires a custom Kubernetes environment-variable name;
    - runtime composition; or
    - generic connection projection only when the source explicitly consumes that applicable contract.
 
@@ -43,14 +45,33 @@ connections: {
 
 `connections` is a top-level object map under container resource `properties`, not inside an individual container.
 
+### Input and output credential connections
+
+Input and output credentials use different connection sources:
+
+```bicep
+connections: {
+  credentials: {
+    source: appCredentials.id
+  }
+  database: {
+    source: database.id
+  }
+}
+```
+
+- `appCredentials` is a user-authored `Radius.Security/secrets` input. Connect the Secret resource itself with `source: appCredentials.id`.
+- `database` is a producer whose Recipe declares secret outputs. Connect only the producer with `source: database.id`; do not add a connection to `database.properties.secrets.name`.
+
+For each declared Recipe secret output, Radius injects a secret-backed environment variable named `CONNECTION_<CONNECTION>_<SECRETKEY>`. `<CONNECTION>` comes from the connection key and `<SECRETKEY>` comes from the exact Recipe output key, using the runtime's documented normalization. For example, a `database` connection and Recipe secret output key `connectionString` produce `CONNECTION_DATABASE_CONNECTIONSTRING`. Never substitute a generic suffix such as `PASSWORD`, `URL`, or `CONNECTIONSTRING` unless that is the actual Recipe output key.
+
+Explicit entries in a container's `env` map take precedence over generated connection variables with the same name. Use that precedence for a deliberate override. Set `disableDefaultEnvVars: true` on the connection only when the exact schema supports it and the workload must suppress all generated environment variables for that connection; it is not required for a single explicit override.
+
 ## Source expects native configuration
 
 Map every required input to the exact name the source consumes:
 
 ```bicep
-@secure()
-param password string
-
 containers: {
   api: {
     image: apiImage.properties.imageReference
@@ -58,15 +79,12 @@ containers: {
       APP_DB_HOST: {
         value: database.properties.host
       }
-      APP_DB_PASSWORD: {
-        value: password
-      }
     }
   }
 }
 ```
 
-This is a representative pattern, not a required variable naming scheme. `APP_DB_PASSWORD` is set from the same `@secure()` parameter supplied to the database resource; Radius encrypts and injects it into the container without materializing it into plain state, so do not wrap it in an authored secret. Confirm that `host` is explicitly mapped by the exact Recipe and that the app-native variables exist in the pinned source. Direct resource references create dependency ordering, so a connection is not required merely to order deployment.
+This is a representative nonsecret mapping, not a required variable naming scheme. Confirm that `host` is explicitly mapped by the exact Recipe and that the app-native variable exists in the pinned source. Credentials still follow the input Secret or producer-output rules above. Direct resource references create dependency ordering, so a connection is not required merely to order deployment.
 
 Keep a connection alongside native variables when the source consumes generic values or the selected profile explicitly requires Radius relationship metadata. Explicit native variables are not categorically forbidden just because generic projection exists. Ensure duplicate names do not carry conflicting values.
 
@@ -74,11 +92,11 @@ Keep a connection alongside native variables when the source consumes generic va
 
 1. Never assume a connection invents app-specific variables, URLs, credentials, database names, or protocol settings.
 2. Never assume one universal JSON or scalar `CONNECTION_*` projection. Verify the target version.
-3. Sensitive recipe outputs may be omitted from generic projection. Resolve and bind them through the exact secret contract described in [secrets-handling.md](secrets-handling.md).
-   A recipe-generated sensitive app-native key must use an explicit `secretKeyRef` even when its name looks exactly like `CONNECTION_<NAME>_<PROPERTY>`; the matching connection does not project the secret. Bind it directly from schema-declared managed-secret metadata, never through an authored wrapper or guessed resource property. A developer-supplied credential you already hold as a `@secure()` parameter goes straight to `env.value` instead.
+3. Recipe-declared secret outputs are projected by the producer connection as secret-backed `CONNECTION_<CONNECTION>_<SECRETKEY>` values. The suffix follows the exact Recipe output key. Do not connect the managed Secret separately.
+   When the application requires a different environment-variable name, add an explicit `env.valueFrom.secretKeyRef` using `<producer>.properties.secrets.name` and the declared key. Explicit `env` takes precedence over a generated variable with the same name.
 4. Reference a nonsecret read-only output only when the exact schema exposes it and the exact target Recipe maps it. Do not **set** read-only properties.
 5. Use `disableDefaultEnvVars` only on the connection entry, only when the exact container schema supports it, and only when generic projection would conflict with the application.
 6. Treat case, number-to-string conversion, URL encoding, TLS mode, and protocol-specific formatting as part of the app's runtime contract.
 7. Preserve exact relationship names and provider/runtime values supplied by an explicit compatible profile; do not normalize them to generic defaults.
 8. Do not count a connected resource as used unless the selected feature path consumes its projection or explicit native wiring.
-9. If schema drift blocks required native or nested managed-secret wiring, resolve a compatible extension or fail closed. Never delete the binding and retain only a connection to obtain a clean compile.
+9. If schema drift blocks a required producer connection, authored Secret connection, or custom native secret binding, resolve a compatible extension or fail closed. Never invent a managed Secret connection or guessed output suffix to obtain a clean compile.

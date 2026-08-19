@@ -40,7 +40,7 @@ Create a requirement ledger before writing Bicep:
 
 Every row must map to emitted Bicep and a real consumer. A declared but unused variable, connection, or resource does not close the row. A Recipe in a default pack does not prove that a custom target Environment registers it.
 
-Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact target schema and API version. For a generated output, open the exact target Environment Recipe or matching immutable provider recipe-pack source and record the verbatim output mapping; schema prose, property names, and READMEs do not prove that a deployed Recipe returns a value. Also prove that the target Environment registers every emitted type and that every omitted optional Recipe input has a safe absent/null path. For a managed secret, prove the declared nested secret-name path and exact key; key declarations are metadata, not readable secret values. The consumer must use that managed secret directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
+Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact target schema and API version. For a generated output, open the exact target Environment Recipe or matching immutable provider recipe-pack source and record the verbatim output mapping; schema prose, property names, and READMEs do not prove that a deployed Recipe returns a value. Also prove that the target Environment registers every emitted type and that every omitted optional Recipe input has a safe absent/null path. For each Recipe secret output, prove the exact output key that determines the secret-backed `CONNECTION_<CONNECTION>_<SECRETKEY>` suffix. Prove `<producer>.properties.secrets.name` and the declared key only when a custom native Kubernetes environment-variable name is required. Any row that reads the key as a resource property, connects the managed Secret separately, or copies it into an authored secret fails preflight.
 
 Reject the model before generation if any schema path is absent, generated output lacks an exact Recipe mapping, omitted input is unsafe, or required Recipe is unavailable in the target Environment. Do not repair a missing output by guessing a direct convenience property, choosing a similarly named alias, copying it through an authored secret wrapper, or retaining only an unconsumed connection. Compilation is downstream confirmation, not property-path discovery.
 
@@ -69,7 +69,9 @@ Model separate web, worker, producer, consumer, and init roles separately even w
 For each required app-native input, choose exactly one supported source:
 
 - explicit `env.value` from a literal, a verified nonsecret resource output, or a developer-supplied `@secure()` parameter (Radius encrypts and injects it);
-- `valueFrom.secretKeyRef` binding a secret resource and key: a recipe-generated managed secret via the owner's read-only `<resource>.properties.secrets.name`, or an authored `Radius.Security/secrets` (app secrets/config files, or a schema-required `secretName`);
+- a connection to a user-authored input `Radius.Security/secrets` via `<secret>.id`;
+- a connection to a producer via `<producer>.id`, including secret-backed generated variables for exact Recipe-declared secret output keys;
+- `valueFrom.secretKeyRef` via `<producer>.properties.secrets.name` and a declared key only for an explicitly required custom Kubernetes environment-variable name;
 - runtime composition from previously bound values when the app requires a larger URL/config value; or
 - a generic Radius connection only when the source parses the exact connection projection supplied by the configured Radius version.
 
@@ -91,7 +93,7 @@ For every workload-to-resource edge, account for all applicable fields:
 | Protocol | Client wire protocol and version supported by the concrete backend |
 | Transport security | TLS mode, certificate behavior, and encryption flags expected by source |
 | Authentication | Mechanism, identity/username, and source-supported config syntax |
-| Secret | A developer-supplied credential from a `@secure()` parameter assigned to `env.value`, or a recipe-generated/authored secret bound with `secretKeyRef` |
+| Secret | A user-authored input Secret connection, a producer connection's exact secret-backed Recipe output variable, or an explicit custom native binding through `<producer>.properties.secrets.name` and the declared key |
 | Final format | Native URL, nested environment key, JAAS/config block, or generated file actually parsed by the workload |
 
 A resource output named `host` may be only one segment of the endpoint. A type name such as Kafka or RabbitMQ does not prove broker compatibility. Apply provider-specific values in `app.bicep` when the application must consume them, while keeping provider provisioning in Environment Bicep.
@@ -135,7 +137,7 @@ Before returning the model:
 1. Account for every required app-native environment/config input or document an intentional source default.
 2. Close every explicit acceptance criterion in the requirement ledger; preserve required literal values, resource-name parameters, and exact relationship names.
 3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its exact Recipe mapping.
-4. Confirm every developer-supplied secret flows through a `@secure()` parameter and directly to `env.value` when the app consumes it; every recipe-generated secret uses `secretKeyRef` with the exact managed-secret path/key; and every authored secret is a genuine app secret/config file or schema-required secret. No authored wrapper copies an output or composes a credential-bearing aggregate.
+4. Confirm every user-authored input Secret is connected through its `.id` when connection projection is consumed; every Recipe-generated credential comes from the producer connection's secret-backed variable with a suffix derived from the exact Recipe output key; and every custom native secret binding uses `<producer>.properties.secrets.name` with the declared key. Explicit `env` precedence and any supported `disableDefaultEnvVars` setting are intentional. No authored wrapper copies an output or composes a credential-bearing aggregate.
 5. Confirm every declared port matches a configured process listener.
 6. Confirm every source build pins the modeled revision, supplies safe values for broken optional Recipe paths, selects compatible platforms, and preserves required Git metadata.
 7. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
