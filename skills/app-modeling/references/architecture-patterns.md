@@ -10,7 +10,7 @@ If a detected component has no Radius type yet, note the gap and continue with t
 Request/response web applications (monolith or MVC).
 - **Signals**: HTTP framework (Express, Django, Rails, Flask, Spring MVC, ASP.NET); server-rendered or REST; usually one primary database.
 - **Typical components**: container + a relational or document database + optional cache + external ingress.
-- **Radius types**: `Radius.Compute/containers` (+ `Radius.Compute/containerImages` for a complete source build) + `Radius.Data/*` + `Radius.Compute/routes`. Credentials follow the data type's schema; user-authored input credentials are stored in `Radius.Security/secrets` and connected by `.id`, while Recipe output credentials come from the producer connection's secret-backed generated variables.
+- **Radius types**: `Radius.Compute/containers` (+ `Radius.Compute/containerImages` for a complete source build) + `Radius.Data/*` + `Radius.Compute/routes`. Credentials follow the data type's schema. Author or reuse `Radius.Security/secrets` only when the workload needs a Secret connection or the schema requires one. On compatible Kubernetes Container Recipes, Recipe-generated `result.secrets` credentials come from the producer connection; preserve explicit/native wiring otherwise.
 
 ### Microservices
 Distributed services communicating via APIs or messages.

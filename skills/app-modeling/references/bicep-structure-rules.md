@@ -63,10 +63,10 @@ Rules:
 - `connections` is a TOP-LEVEL property under `properties` — NOT inside `containers`
 - `disableDefaultEnvVars` goes on the connection entry, NOT on the container
 - Port property is `containerPort`, NOT `port`
-- A producer connection uses `source: <producer>.id` and projects Recipe-declared credentials as secret-backed `CONNECTION_<CONNECTION>_<SECRETKEY>` variables. The suffix follows the exact Recipe output key; do not connect the managed Secret separately
-- A user-authored input Secret connection uses `source: <secret>.id`
+- Secret-backed generated variables require a proven-compatible Kubernetes Container Recipe; preserve supported explicit `env`, `secretKeyRef`, `envFrom`, or native-variable wiring for ACI and older/unknown contracts
+- A producer connection uses `source: <producer>.id` and projects Recipe `result.secrets` credentials as secret-backed `CONNECTION_<CONNECTION>_<SECRETKEY>` variables. An authored/reused workload Secret connection uses `source: <secret>.id`
 - `env` values use `{ value: ... }` for a literal or verified nonsecret output. Use `{ valueFrom: { secretKeyRef: { secretName: <producer>.properties.secrets.name, key: ... } } }` only when a Recipe output must reach a custom native Kubernetes environment-variable name
-- An explicit `env` entry takes precedence over a generated connection variable with the same name. Put `disableDefaultEnvVars: true` on the connection only when the exact schema supports it and all generated variables for that connection must be disabled
+- For one generated name, precedence is explicit `env`, managed secret reference, then ordinary property. Reject two secret-backed names that collide after uppercasing. Put `disableDefaultEnvVars: true` on the connection only when all generated variables for that connection must be disabled; omit it when any generated variable is required
 - `containerPort` exposes the process port; it does not configure the process listener
 - `command` replaces the image `ENTRYPOINT`, and `args` replaces `CMD`; override only after inspecting the image contract and required binaries
 - Never **set** a read-only property. Reference a nonsecret read-only output only when the exact schema declares it and the exact target Recipe explicitly maps it
@@ -201,8 +201,8 @@ resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 ```
 
 Rules:
-- Use only when the exact schema supports it: for a type's required secret input, a workload input Secret connection, or app secrets/config files
-- Do not re-author a recipe-generated output. Bind directly from its schema-declared managed secret, or report that the exact contract cannot supply it
+- Use only when needed and supported: for a type's required secret input, a workload Secret connection, or app secrets/config files. Reuse an existing suitable Secret instead of duplicating it
+- Do not re-author a Recipe-generated output. Use the producer connection for standard projection or its schema-declared managed Secret name/key for an explicit custom `secretKeyRef`; otherwise report that the exact contract cannot supply it
 - Never set authored secret `data.value` from a recipe resource's sensitive output or a guessed convenience property
 - NEVER hardcode passwords — use `@secure() param`
 - `data` is an object map, NOT an array

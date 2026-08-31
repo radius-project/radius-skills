@@ -44,14 +44,13 @@ the SQLite default does not override the explicit selection.
    do not fall back to SQLite merely because it is the application default.
 2. Resolve the MySQL type, API version, credential inputs, and `host` output
    against the exact configured extension and recipe.
-3. Map the nonsecret native variables explicitly. For the credential, verify that
-   the selected source path consumes the generated input Secret connection
-   variable; a connection does not invent `MYSQL_PASSWORD`.
+3. Map all four native variables. A connection does not invent `MYSQL_PASSWORD`.
 4. Store the developer-supplied password in a user-authored
    `Radius.Security/secrets` resource and connect that input Secret by `.id`.
-   The generated variable suffix follows the authored Secret key. If the pinned
-   source cannot consume that contract, report the contract gap rather than
-   assigning the secure parameter directly to `env.value`.
+   This generates `CONNECTION_DATABASECREDENTIALS_PASSWORD` only on a compatible
+   Kubernetes Container Recipe; the suffix follows the authored Secret key.
+   Preserve native `MYSQL_PASSWORD` through explicit `env.value` from the same
+   `@secure()` parameter because that is what the pinned source reads.
 5. Referencing the image and MySQL host creates dependency ordering. Keep the
    input Secret connection required for the password. Omit a separate MySQL
    producer connection unless the request explicitly requires relationship
@@ -68,9 +67,10 @@ the SQLite default does not override the explicit selection.
 ## Completion checks
 
 - The selected MySQL type and source-built workload are both emitted.
-- Every required nonsecret native variable appears with exact spelling and format.
+- Every required native variable appears with exact spelling and format.
 - The workload password comes from a user-authored input Secret connection by
-  `.id`; no password is hardcoded and no Recipe output is copied.
+  `.id`, while explicit `MYSQL_PASSWORD` preserves the source contract from the
+  same secure parameter; no password is hardcoded and no Recipe output is copied.
 - The image has a Docker-valid immutable tag and targets only `linux/amd64`.
 - The target Environment registers every Recipe required by the model.
 - The process listener, image entrypoint, and database name/version agree with
